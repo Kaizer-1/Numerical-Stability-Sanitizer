@@ -1,0 +1,34 @@
+# ── Build artifacts ────────────────────────────────────────────
+build/
+*.o
+*.a
+*.dylib
+*.so
+*.dll
+*.exe
+
+# ── Python cache ───────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── macOS system files ─────────────────────────────────────────
+.DS_Store
+.Rhistory
+
+# ── Personal / internal docs (not for evaluator) ───────────────
+docs/INTERVIEW_GUIDE.md
+docs/INTERVIEW_GUIDE.html
+docs/INTERVIEW_GUIDE.pdf
+docs/presentation.md
+docs/design.md
+
+# Raw screenshots (originals with spaces; clean copies already in docs/)
+docs/Screenshot*.png
+
+# ── Temp / editor files ────────────────────────────────────────
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

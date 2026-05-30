@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSan — Numerical Stability Sanitizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: light only; }
+    html  { color-scheme: light only; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Fira Sans', system-ui, sans-serif;
+      background-color: #F0EFEB;
+      color: #111111;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    body.play-mode { overflow: hidden; height: 100vh; }
+
+    /* ── Header ────────────────────────────────────────────── */
+    header {
+      background-color: #111111;
+      color: #ffffff;
+      height: 52px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid #111111;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
+    .hd-brand { display: flex; align-items: baseline; gap: 10px; }
+    .hd-title {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 17px;
+      font-weight: 600;
+      color: #ffffff;
+      cursor: pointer;
+    }
+    .hd-sep { color: #444444; }
+    .hd-sub { font-size: 12px; color: #888888; }
+    .hd-nav { display: flex; align-items: center; gap: 4px; }
+    .nav-btn {
+      font-family: 'Fira Sans', system-ui, sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border: 2px solid #333333;
+      background-color: transparent;
+      color: #888888;
+      cursor: pointer;
+      transition: background-color 130ms, color 130ms, border-color 130ms;
+    }
+    .nav-btn:hover { color: #ffffff; border-color: #666666; }
+    .nav-btn.active { background-color: #ffffff; color: #111111; border-color: #ffffff; }
+
+    /* ══════════════════════════════════════════════════════════
+       DASHBOARD PAGE
+    ══════════════════════════════════════════════════════════ */
+    #page-dash { display: block; }
+    #page-play { display: none; }
+
+    /* ── Hero ──────────────────────────────────────────────── */
+    .hero {
+      background-color: #111111;
+      color: #ffffff;
+      padding: 72px 48px 64px;
+      border-bottom: 2px solid #111111;
+    }
+    .hero-inner { max-width: 900px; }
+    .hero-eyebrow {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #F59E0B;
+      margin-bottom: 18px;
+    }
+    .hero-title {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+    .hero-title span { color: #F59E0B; }
+    .hero-desc {
+      font-size: 17px;
+      line-height: 1.7;
+      color: #AAAAAA;
+      max-width: 620px;
+      margin-bottom: 36px;
+    }
+    .hero-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .btn-hero-primary {
+      font-family: 'Fira Sans', system-ui, sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 12px 28px;
+      background-color: #F59E0B;
+      color: #111111;
+      border: 2px solid #F59E0B;
+      cursor: pointer;
+      transition: background-color 130ms, color 130ms;
+    }
+    .btn-hero-primary:hover { background-color: #ffffff; color: #111111; border-color: #ffffff; }
+    .hero-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 40px; }
+    .hero-pill {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 10px;
+      color: #666666;
+      border: 1px solid #333333;
+      padding: 3px 10px;
+    }
+
+    /* ── Sections ──────────────────────────────────────────── */
+    .section {
+      padding: 64px 48px;
+      border-bottom: 2px solid #111111;
+    }
+    .section-alt { background-color: #ffffff; }
+    .section-dark { background-color: #111111; color: #ffffff; }
+    .section-amber { background-color: #FFFBEB; }
+
+    .section-inner { max-width: 960px; margin: 0 auto; }
+
+    .sec-kicker {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #F59E0B;
+      margin-bottom: 10px;
+    }
+    .sec-heading {
+      font-size: clamp(24px, 3.5vw, 36px);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .sec-sub {
+      font-size: 15px;
+      color: #555555;
+      max-width: 640px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+    }
+    .section-dark .sec-sub { color: #888888; }
+
+    /* ── Live calculator ───────────────────────────────────── */
+    .calc-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 2px solid #111111;
+    }
+    .calc-inputs {
+      background-color: #ffffff;
+      padding: 28px 28px;
+      border-right: 2px solid #111111;
+    }
+    .calc-inputs h3 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #888888;
+      margin-bottom: 20px;
+    }
+    .calc-field { margin-bottom: 18px; }
+    .calc-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #555555;
+      margin-bottom: 6px;
+    }
+    .calc-field input[type="number"] {
+      width: 100%;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 14px;
+      padding: 9px 12px;
+      border: 2px solid #111111;
+      background-color: #F5F4F0;
+      color: #111111;
+      outline: none;
+    }
+    .calc-field input:focus { border-color: #F59E0B; }
+    .calc-expr {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 13px;
+      background-color: #111111;
+      color: #F0EDE8;
+      padding: 14px 16px;
+      margin-top: 16px;
+      line-height: 1.7;
+    }
+    .calc-results {
+      background-color: #0A0A0A;
+      padding: 28px 28px;
+    }
+    .calc-results h3 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #555555;
+      margin-bottom: 20px;
+      font-family: 'Fira Code', Consolas, monospace;
+    }
+    .calc-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid #1e1e1e;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 12px;
+    }
+    .calc-row:last-of-type { border-bottom: none; }
+    .calc-row-label { color: #666666; }
+    .calc-row-val { color: #C8C8C0; font-weight: 500; }
+    .calc-row-val.bad  { color: #EF4444; font-weight: 600; }
+    .calc-row-val.good { color: #16A34A; font-weight: 600; }
+    .calc-verdict {
+      margin-top: 20px;
+      padding: 12px 16px;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      border: 2px solid;
+    }
+    .calc-verdict.detected { background-color: #F59E0B22; border-color: #F59E0B; color: #F59E0B; }
+    .calc-verdict.diverge  { background-color: #2563EB22; border-color: #2563EB; color: #93C5FD; }
+    .calc-verdict.clean    { background-color: #16A34A22; border-color: #16A34A; color: #86EFAC; }
+
+    /* ── Architecture flow ─────────────────────────────────── */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+    .flow-box {
+      background-color: #ffffff;
+      border: 2px solid #111111;
+      padding: 16px 20px;
+      min-width: 130px;
+      text-align: center;
+    }
+    .flow-box-label {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: #111111;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .flow-box-sub {
+      font-size: 10px;
+      color: #888888;
+    }
+    .flow-arrow {
+      font-size: 18px;
+      color: #F59E0B;
+      padding: 0 8px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .flow-box.highlight {
+      background-color: #111111;
+      border-color: #111111;
+    }
+    .flow-box.highlight .flow-box-label { color: #F59E0B; }
+    .flow-box.highlight .flow-box-sub   { color: #888888; }
+
+    .arch-cols {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      border: 2px solid #111111;
+    }
+    .arch-col {
+      padding: 24px 22px;
+      border-right: 2px solid #111111;
+    }
+    .arch-col:last-child { border-right: none; }
+    .arch-col-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #F59E0B;
+      margin-bottom: 12px;
+      font-family: 'Fira Code', Consolas, monospace;
+    }
+    .arch-col ul { list-style: none; }
+    .arch-col ul li {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 11.5px;
+      color: #AAAAAA;
+      padding: 4px 0;
+      border-bottom: 1px solid #1e1e1e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .arch-col ul li:last-child { border-bottom: none; }
+    .arch-col ul li::before { content: "→"; color: #F59E0B; font-size: 10px; }
+
+    /* ── Features grid ─────────────────────────────────────── */
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0;
+      border: 2px solid #111111;
+    }
+    .feat-card {
+      background-color: #ffffff;
+      padding: 22px 22px;
+      border-right: 2px solid #111111;
+      border-bottom: 2px solid #111111;
+    }
+    .feat-card:nth-child(3n) { border-right: none; }
+    .feat-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #111111;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .feat-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #F59E0B;
+      flex-shrink: 0;
+    }
+    .feat-body {
+      font-size: 12.5px;
+      color: #555555;
+      line-height: 1.6;
+    }
+    .feat-code {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 10.5px;
+      color: #888888;
+      margin-top: 6px;
+    }
+
+    /* ── Benchmarks ────────────────────────────────────────── */
+    .bench-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 2px solid #111111;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 13px;
+    }
+    .bench-table th {
+      background-color: #111111;
+      color: #ffffff;
+      padding: 12px 18px;
+      text-align: left;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border-right: 1px solid #333333;
+    }
+    .bench-table th:last-child { border-right: none; }
+    .bench-table td {
+      padding: 12px 18px;
+      border-bottom: 1px solid #DDDDDD;
+      border-right: 1px solid #DDDDDD;
+      color: #111111;
+    }
+    .bench-table td:last-child { border-right: none; }
+    .bench-table tr:last-child td { border-bottom: none; }
+    .bench-table tr:nth-child(even) td { background-color: #F8F7F3; }
+    .bench-overhead {
+      font-weight: 700;
+      color: #F59E0B;
+    }
+    .bench-note {
+      margin-top: 16px;
+      font-size: 12.5px;
+      color: #888888;
+      font-family: 'Fira Code', Consolas, monospace;
+    }
+
+    /* ── Test cases grid ───────────────────────────────────── */
+    .tests-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0;
+      border: 2px solid #111111;
+    }
+    .tc-card {
+      background-color: #ffffff;
+      padding: 16px 18px;
+      border-right: 2px solid #111111;
+      border-bottom: 2px solid #111111;
+      cursor: pointer;
+      transition: background-color 120ms;
+    }
+    .tc-card:hover { background-color: #F59E0B; }
+    .tc-card:hover .tc-num { color: #333333; }
+    .tc-card:hover .tc-desc { color: #333333; }
+    .tc-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .tc-num {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 10px;
+      color: #AAAAAA;
+      font-weight: 600;
+    }
+    .tc-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #111111;
+      margin-bottom: 4px;
+    }
+    .tc-desc {
+      font-size: 11.5px;
+      color: #777777;
+      line-height: 1.5;
+    }
+    .tc-card:hover .tc-name { color: #111111; }
+
+    /* Tags */
+    .tag {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 9px;
+      font-weight: 600;
+      padding: 2px 6px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .t-cancel { background-color: #F59E0B; color: #111111; }
+    .t-div    { background-color: #2563EB; color: #ffffff; }
+    .t-clean  { background-color: #16A34A; color: #ffffff; }
+    .t-fn     { background-color: #7C3AED; color: #ffffff; }
+    .t-vec    { background-color: #0891B2; color: #ffffff; }
+    .t-mem    { background-color: #78716C; color: #ffffff; }
+
+    /* ── Dashboard CTA ─────────────────────────────────────── */
+    .dash-cta {
+      background-color: #111111;
+      padding: 60px 48px;
+      text-align: center;
+    }
+    .dash-cta h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 12px;
+    }
+    .dash-cta p { color: #888888; margin-bottom: 28px; font-size: 15px; }
+
+    /* ══════════════════════════════════════════════════════════
+       PLAYGROUND PAGE  (existing split layout)
+    ══════════════════════════════════════════════════════════ */
+    .layout {
+      display: grid;
+      grid-template-columns: 370px 1fr;
+      height: calc(100vh - 52px);
+      overflow: hidden;
+    }
+    .left {
+      background-color: #ffffff;
+      border-right: 2px solid #111111;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sec-label {
+      flex-shrink: 0;
+      padding: 9px 14px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #555555;
+      background-color: #E8E6E1;
+      border-bottom: 2px solid #111111;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sec-label-count {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 9px;
+      color: #999999;
+    }
+    .tmpl-list {
+      overflow-y: auto;
+      flex-shrink: 0;
+      max-height: 256px;
+      border-bottom: 2px solid #111111;
+      background-color: #ffffff;
+    }
+    .tmpl-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 14px;
+      border-bottom: 1px solid #DDDDDD;
+      cursor: pointer;
+      transition: background-color 120ms, color 120ms;
+      user-select: none;
+      background-color: #ffffff;
+      color: #111111;
+    }
+    .tmpl-item:last-child { border-bottom: none; }
+    .tmpl-item:hover { background-color: #F59E0B; }
+    .tmpl-item:hover .tmpl-num { color: #333333; }
+    .tmpl-item.active { background-color: #111111; color: #ffffff; }
+    .tmpl-item.active .tmpl-num { color: #888888; }
+    .tmpl-num {
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 10px;
+      color: #AAAAAA;
+      width: 20px;
+      flex-shrink: 0;
+    }
+    .tmpl-name {
+      font-size: 13px;
+      font-weight: 500;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .editor-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .editor-inner { flex: 1; overflow: hidden; }
+    #editor {
+      width: 100%;
+      height: 100%;
+      background-color: #111111;
+      color: #E8E5E0;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 12.5px;
+      line-height: 1.65;
+      padding: 13px 14px;
+      border: none;
+      resize: none;
+      outline: none;
+      tab-size: 2;
+      caret-color: #F59E0B;
+    }
+    #editor::placeholder { color: #505050; font-style: italic; }
+    .toolbar {
+      flex-shrink: 0;
+      padding: 9px 12px;
+      background-color: #E8E6E1;
+      border-top: 2px solid #111111;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn {
+      font-family: 'Fira Sans', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 18px;
+      border: 2px solid #111111;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background-color 130ms, color 130ms, border-color 130ms;
+      text-transform: uppercase;
+    }
+    .btn-run { background-color: #111111; color: #ffffff; }
+    .btn-run:hover:not(:disabled) { background-color: #16A34A; color: #ffffff; border-color: #16A34A; }
+    .btn-run:disabled { background-color: #555555; color: #999999; border-color: #555555; cursor: not-allowed; }
+    .btn-clear { background-color: #ffffff; color: #111111; }
+    .btn-clear:hover { background-color: #EF4444; color: #ffffff; border-color: #EF4444; }
+    .status {
+      margin-left: auto;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 10px;
+      padding: 3px 8px;
+      border: 1px solid transparent;
+      transition: all 150ms;
+      color: #999999;
+    }
+    .s-idle    { color: #999999; }
+    .s-running { color: #F59E0B; border-color: #F59E0B; animation: blink 0.9s infinite; }
+    .s-ok      { color: #16A34A; border-color: #16A34A; }
+    .s-err     { color: #EF4444; border-color: #EF4444; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .explain {
+      flex-shrink: 0;
+      background-color: #FAFAF8;
+      border-top: 2px solid #111111;
+      padding: 13px 14px;
+      display: none;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .explain.show { display: block; }
+    .explain-head {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #888888;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .explain-body { font-size: 13px; line-height: 1.65; color: #222222; }
+    .explain-expects {
+      margin-top: 8px;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 10px;
+      color: #777777;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .right {
+      background-color: #0A0A0A;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .term-header {
+      flex-shrink: 0;
+      padding: 8px 16px;
+      background-color: #161616;
+      border-bottom: 2px solid #252525;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #555555;
+    }
+    .term-dot {
+      width: 8px; height: 8px;
+      background-color: #2a2a2a;
+      border-radius: 50%;
+      transition: background-color 200ms;
+    }
+    .term-dot.live { background-color: #16A34A; box-shadow: 0 0 6px #16A34A; }
+    .term-copy {
+      margin-left: auto;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 10px;
+      color: #555555;
+      background: none;
+      border: 1px solid #333333;
+      padding: 2px 8px;
+      cursor: pointer;
+      transition: color 130ms, border-color 130ms;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .term-copy:hover { color: #ffffff; border-color: #666666; }
+    .term-out {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 18px;
+      font-family: 'Fira Code', Consolas, monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+    }
+    .term-out:focus { outline: none; }
+    .tl         { display: block; }
+    .tl-empty   { color: #2e2e2e; font-style: italic; }
+    .tl-prompt  { color: #3a3a3a; }
+    .tl-section { color: #3a3a3a; margin-top: 6px; }
+    .tl-warn    { color: #F59E0B; font-weight: 600; }
+    .tl-err     { color: #EF4444; font-weight: 600; }
+    .tl-loc     { color: #666666; }
+    .tl-detail  { color: #888888; }
+    .tl-note    { color: #666666; font-style: italic; }
+    .tl-stdout  { color: #C8C8C0; }
+    .tl-ok      { color: #16A34A; font-weight: 600; }
+    .tl-cerr    { color: #EF4444; }
+    .tl-cwarn   { color: #F59E0B; }
+    .tl-dim     { color: #3a3a3a; }
+    .tl-divider { display: block; border: none; border-top: 1px solid #1e1e1e; margin: 7px 0; }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background-color: #333333; }
+    .left ::-webkit-scrollbar-thumb { background-color: #cccccc; }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .hero { padding: 48px 24px; }
+      .section { padding: 48px 24px; }
+      .calc-wrap { grid-template-columns: 1fr; }
+      .calc-inputs { border-right: none; border-bottom: 2px solid #111111; }
+      .arch-cols { grid-template-columns: 1fr; }
+      .arch-col { border-right: none; border-bottom: 2px solid #111111; }
+      .arch-col:last-child { border-bottom: none; }
+    }
+    @media (max-width: 767px) {
+      .layout { grid-template-columns: 1fr; height: auto; overflow: visible; }
+      body.play-mode { overflow: auto; height: auto; }
+      .left { border-right: none; border-bottom: 2px solid #111111; height: auto; }
+      .editor-inner { height: 260px; }
+      .right { height: 360px; }
+      .hd-sub { display: none; }
+      .feat-grid { grid-template-columns: 1fr 1fr; }
+      .feat-card:nth-child(3n) { border-right: 2px solid #111111; }
+      .feat-card:nth-child(2n) { border-right: none; }
+      .flow { flex-direction: column; align-items: flex-start; }
+      .flow-arrow { transform: rotate(90deg); padding: 4px 0; }
+      .dash-cta { padding: 40px 24px; }
+    }
+  </style>
+</head>
+<body id="body">
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<header>
+  <div class="hd-brand" onclick="showPage('dash')" style="cursor:pointer">
+    <span class="hd-title">NSan</span>
+    <span class="hd-sep">—</span>
+    <span class="hd-sub">Numerical Stability Sanitizer</span>
+  </div>
+  <nav class="hd-nav">
+    <button class="nav-btn active" id="nav-dash" onclick="showPage('dash')">Dashboard</button>
+    <button class="nav-btn"        id="nav-play" onclick="showPage('play')">Playground</button>
+  </nav>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════
+     DASHBOARD
+══════════════════════════════════════════════════════════ -->
+<div id="page-dash">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-eyebrow">LLVM Instrumentation Pass &amp; Runtime · Part B Project</div>
+      <h1 class="hero-title">Find the float bugs<br>your compiler <span>never warns</span> about.</h1>
+      <p class="hero-desc">
+        NSan shadows every <code style="font-family:'Fira Code',monospace;color:#F59E0B">float</code> operation with a
+        <code style="font-family:'Fira Code',monospace;color:#F59E0B">double</code> at compile time.
+        At run time, when the two diverge, it tells you exactly where precision was lost —
+        file, line, column, operation, and cancellation ratio.
+      </p>
+      <div class="hero-actions">
+        <button class="btn-hero-primary" onclick="showPage('play')">Open Playground &#8594;</button>
+      </div>
+      <div class="hero-pills">
+        <span class="hero-pill">LLVM pass plugin</span>
+        <span class="hero-pill">float → double shadow</span>
+        <span class="hero-pill">19 test cases</span>
+        <span class="hero-pill">3 benchmarks</span>
+        <span class="hero-pill">17 math models</span>
+        <span class="hero-pill">JSON + text output</span>
+        <span class="hero-pill">thread-safe runtime</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- The Problem -->
+  <div class="section section-alt">
+    <div class="section-inner">
+      <div class="sec-kicker">The Problem</div>
+      <h2 class="sec-heading">Floating-point bugs are completely silent.</h2>
+      <p class="sec-sub">
+        A <code style="font-family:'Fira Code',monospace">float</code> has only 24 bits of mantissa — about 7 significant digits.
+        When you add a tiny number to a huge one, the tiny number simply vanishes.
+        Subtract the huge number back and you get zero instead of the tiny value.
+        The program compiles, runs, and produces output. The output is just wrong.
+        Try it below: enter any two numbers and watch it happen live.
+      </p>
+      <div class="calc-wrap">
+        <div class="calc-inputs">
+          <h3>Input Values</h3>
+          <div class="calc-field">
+            <label>Big value</label>
+            <input type="number" id="calc-big" value="100000000" oninput="updateCalc()" />
+          </div>
+          <div class="calc-field">
+            <label>Tiny value</label>
+            <input type="number" id="calc-tiny" value="1" oninput="updateCalc()" />
+          </div>
+          <div class="calc-expr" id="calc-expr">
+            float y = (big + tiny) - big;<br>
+            <span style="color:#888">// should equal tiny</span>
+          </div>
+        </div>
+        <div class="calc-results">
+          <h3>Precision Comparison</h3>
+          <div class="calc-row">
+            <span class="calc-row-label">float32 result</span>
+            <span class="calc-row-val" id="cr-f32">—</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-row-label">double64 shadow</span>
+            <span class="calc-row-val" id="cr-f64">—</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-row-label">expected (tiny)</span>
+            <span class="calc-row-val good" id="cr-exp">—</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-row-label">absolute error</span>
+            <span class="calc-row-val" id="cr-abs">—</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-row-label">relative error</span>
+            <span class="calc-row-val" id="cr-rel">—</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-row-label">cancellation ratio</span>
+            <span class="calc-row-val" id="cr-ratio">—</span>
+          </div>
+          <div class="calc-verdict detected" id="cr-verdict">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How It Works -->
+  <div class="section" style="background-color:#F0EFEB">
+    <div class="section-inner">
+      <div class="sec-kicker">Architecture</div>
+      <h2 class="sec-heading">How shadow value instrumentation works.</h2>
+      <p class="sec-sub">
+        An LLVM function pass rewrites every float operation in the IR.
+        Each original float computation runs alongside an identical computation in double precision.
+        A C runtime library stores shadow values in a hash table keyed by memory address
+        and emits diagnostics whenever the two diverge.
+      </p>
+
+      <div class="flow" style="margin-bottom:32px">
+        <div class="flow-box"><span class="flow-box-label">C Source</span><span class="flow-box-sub">your code</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box highlight"><span class="flow-box-label">numerical-clang</span><span class="flow-box-sub">wrapper + -fsanitize</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box highlight"><span class="flow-box-label">LLVM Pass</span><span class="flow-box-sub">IR instrumentation</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box"><span class="flow-box-label">Runtime</span><span class="flow-box-sub">shadow table</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box"><span class="flow-box-label">Diagnostics</span><span class="flow-box-sub">text or JSON</span></div>
+      </div>
+
+      <div class="arch-cols">
+        <div class="arch-col">
+          <div class="arch-col-title">Pass Plugin (C++)</div>
+          <ul>
+            <li>fadd / fsub / fmul / fdiv / frem</li>
+            <li>fneg, fptrunc</li>
+            <li>float loads &amp; stores</li>
+            <li>PHI nodes &amp; select</li>
+            <li>&lt;N x float&gt; fixed vectors</li>
+            <li>memcpy / memmove / memset</li>
+            <li>direct call shadow ABI</li>
+            <li>17 libm math functions</li>
+          </ul>
+        </div>
+        <div class="arch-col">
+          <div class="arch-col-title">Runtime Library (C)</div>
+          <ul>
+            <li>open-addressed shadow hash table</li>
+            <li>byte-level address tracking</li>
+            <li>thread-local arg/return slots</li>
+            <li>C11 spin-lock thread safety</li>
+            <li>configurable thresholds (env vars)</li>
+            <li>duplicate-report suppression</li>
+            <li>text &amp; JSON output modes</li>
+            <li>NSAN_HALT_ON_ERROR support</li>
+          </ul>
+        </div>
+        <div class="arch-col">
+          <div class="arch-col-title">Diagnostic Output</div>
+          <ul>
+            <li>catastrophic cancellation</li>
+            <li>float/shadow divergence</li>
+            <li>NaN/Inf mismatch</li>
+            <li>file : line : column</li>
+            <li>function name</li>
+            <li>abs_error, rel_error</li>
+            <li>cancellation_ratio</li>
+            <li>lhs_shadow, rhs_shadow</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <div class="section section-alt">
+    <div class="section-inner">
+      <div class="sec-kicker">Capabilities</div>
+      <h2 class="sec-heading">What NSan instruments.</h2>
+      <p class="sec-sub" style="margin-bottom:32px">Every instrumented category has at least one dedicated test case demonstrating it works correctly.</p>
+      <div class="feat-grid">
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>Scalar Float Arithmetic</div>
+          <div class="feat-body">All five IEEE 754 binary operations instrumented. Each float op runs in parallel in double precision.</div>
+          <div class="feat-code">fadd · fsub · fmul · fdiv · frem · fneg</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>Shadow Memory</div>
+          <div class="feat-body">Float loads and stores carry shadow values in a hash table keyed by address. Survives array indexing and struct fields.</div>
+          <div class="feat-code">load · store · address-keyed table</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>Control Flow</div>
+          <div class="feat-body">Shadow propagates through loop-carried PHI nodes, conditional selects, and fptrunc casts.</div>
+          <div class="feat-code">phi · select · fptrunc</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>SIMD Vectors</div>
+          <div class="feat-body">Fixed-width float vectors get per-lane double shadows. Every lane is checked independently with exact source location.</div>
+          <div class="feat-code">&lt;4 x float&gt; → &lt;4 x double&gt;</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>Math Function Models</div>
+          <div class="feat-body">17 libm functions have double-precision shadow models so the shadow doesn't go stale after a math call.</div>
+          <div class="feat-code">sqrt · sin · cos · exp · log · pow + 11 more</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>Cross-Function ABI</div>
+          <div class="feat-body">Thread-local slots propagate float argument and return shadows across non-inlined function calls.</div>
+          <div class="feat-code">TLS arg slots · TLS return slot</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>Memory Range Ops</div>
+          <div class="feat-body">memcpy and memmove transfer shadow state. memset and integer stores invalidate overlapping entries to prevent false positives.</div>
+          <div class="feat-code">memcpy · memmove · memset</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>Three Diagnostic Types</div>
+          <div class="feat-body">Catastrophic cancellation (input/result ratio), float/shadow divergence (threshold), and NaN/Inf mismatch.</div>
+          <div class="feat-code">cancellation · divergence · NaN/Inf</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-title"><div class="feat-dot"></div>Tunable at Runtime</div>
+          <div class="feat-body">All thresholds controlled by environment variables. No recompile needed to tune sensitivity.</div>
+          <div class="feat-code">NSAN_REL_ERROR · NSAN_CANCELLATION_RATIO</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benchmarks -->
+  <div class="section section-amber">
+    <div class="section-inner">
+      <div class="sec-kicker">Performance</div>
+      <h2 class="sec-heading">Benchmark overhead vs. uninstrumented baseline.</h2>
+      <p class="sec-sub">Measured on macOS arm64, Homebrew LLVM 22.1.4, 3 iterations each. Overhead varies with float-operation density — the tight scalar loops show ~38× while the vectorised matrix multiply shows only ~5×.</p>
+      <table class="bench-table">
+        <thead>
+          <tr>
+            <th>Program</th>
+            <th>Description</th>
+            <th>Baseline</th>
+            <th>Instrumented</th>
+            <th>Overhead</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>dot_product.c</td>
+            <td>Dot product of two float arrays (N=500k)</td>
+            <td>0.005989 s</td>
+            <td>0.226089 s</td>
+            <td><span class="bench-overhead">37.75×</span></td>
+          </tr>
+          <tr>
+            <td>harmonic.c</td>
+            <td>Harmonic sum 1/1 + 1/2 + … + 1/N</td>
+            <td>0.011756 s</td>
+            <td>0.449429 s</td>
+            <td><span class="bench-overhead">38.23×</span></td>
+          </tr>
+          <tr>
+            <td>matmul.c</td>
+            <td>Naïve N×N float matrix multiply</td>
+            <td>0.008148 s</td>
+            <td>0.041147 s</td>
+            <td><span class="bench-overhead">5.05×</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="bench-note">
+        ↑ For comparison: Herbgrind (Valgrind-based float analysis) typically reports 100–1000× overhead.
+      </div>
+    </div>
+  </div>
+
+  <!-- All 19 Test Cases -->
+  <div class="section section-alt">
+    <div class="section-inner">
+      <div class="sec-kicker">Test Suite</div>
+      <h2 class="sec-heading">All 19 test cases — click any to open in Playground.</h2>
+      <p class="sec-sub" style="margin-bottom:32px">17 positive-detection cases + 2 negative correctness cases that must produce no diagnostic.</p>
+      <div class="tests-grid" id="dash-tests-grid"></div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="dash-cta">
+    <h2>Try it yourself.</h2>
+    <p>Open the Playground to run any of the 19 tests or write your own C code.</p>
+    <button class="btn-hero-primary" onclick="showPage('play')">Open Playground &#8594;</button>
+  </div>
+
+</div><!-- /page-dash -->
+
+<!-- ══════════════════════════════════════════════════════════
+     PLAYGROUND
+══════════════════════════════════════════════════════════ -->
+<div id="page-play">
+  <div class="layout">
+    <div class="left">
+      <div class="sec-label">Templates <span class="sec-label-count">19 cases</span></div>
+      <div class="tmpl-list" id="tmpl-list"></div>
+      <div class="sec-label">Code Editor</div>
+      <div class="editor-wrap">
+        <div class="editor-inner">
+          <textarea id="editor" spellcheck="false"
+            placeholder="// Write custom C code here, or pick a template above.
+// -fsanitize=numerical, -O1, and -lm are added automatically.
+
+#include &lt;stdio.h&gt;
+
+int main(void) {
+    volatile float big  = 100000000.0f;
+    volatile float tiny = 1.0f;
+    float y = (big + tiny) - big;
+    printf(&quot;result: %f\n&quot;, y);
+    return 0;
+}"></textarea>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-run" id="btn-run" onclick="runCode()">&#9654; Run</button>
+          <button class="btn btn-clear" onclick="clearOutput()">Clear</button>
+          <span class="status s-idle" id="status">READY</span>
+        </div>
+        <div class="explain" id="explain">
+          <div class="explain-head">
+            <span id="explain-tag"></span>
+            <span id="explain-title" style="color:#111111;font-weight:700;font-size:12px;text-transform:none;letter-spacing:0;font-family:'Fira Sans',system-ui,sans-serif"></span>
+          </div>
+          <div class="explain-body" id="explain-body"></div>
+          <div class="explain-expects">
+            <span style="color:#666666">Expects:</span>
+            <span id="explain-expects"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="term-header">
+        <div class="term-dot" id="term-dot"></div>
+        Output Terminal
+        <button class="term-copy" onclick="copyOutput()">Copy</button>
+      </div>
+      <div class="term-out" id="term-out" tabindex="0">
+        <span class="tl tl-dim">── NSan Playground ────────────────────────────────────────</span><br>
+        <span class="tl tl-empty">  Pick a template or write C code, then click Run.</span><br>
+        <span class="tl tl-dim">──────────────────────────────────────────────────────────</span><br>
+        <span class="tl tl-empty"> </span><br>
+        <span class="tl tl-prompt">  Diagnostic types:</span><br>
+        <span class="tl tl-warn">  warning: catastrophic cancellation</span><br>
+        <span class="tl tl-detail">    add/sub result tiny relative to inputs (ratio ≥ 1e6)</span><br>
+        <span class="tl tl-warn">  warning: float/shadow divergence</span><br>
+        <span class="tl tl-detail">    rel_error &gt; 1e-5 and abs_error &gt; 1e-12</span><br>
+        <span class="tl tl-err">  error: NaN/Inf propagation</span><br>
+        <span class="tl tl-detail">    float and shadow disagree on NaN or Inf state</span><br>
+        <span class="tl tl-empty"> </span><br>
+        <span class="tl tl-detail">  Shortcut: Ctrl+Enter / Cmd+Enter to run</span><br>
+      </div>
+    </div>
+  </div>
+</div><!-- /page-play -->
+
+<script>
+/* ── Test cases data ─────────────────────────────────────────── */
+const TESTS = [
+  { id:1,  name:"Add Then Subtract",        tag:"catastrophic cancel", tagClass:"t-cancel", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"(big + tiny) − big rounds away tiny in float; shadow retains it.",
+    explanation:"The canonical cancellation pattern. Adding tiny (1.0) to big (1e8) rounds back to 1e8 in float—the low-order bit is lost. Subtracting big then yields 0 instead of 1. The double shadow retains 1.0 through the addition and catches the divergence. Cancellation ratio ≈ 1e8.",
+    code:`#include <stdio.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float y = (big + tiny) - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:2,  name:"Subtract Then Subtract",   tag:"catastrophic cancel", tagClass:"t-cancel", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"(big − tiny) − big; subtraction variant of the same cancellation.",
+    explanation:"Same cancellation mechanics as case 01, but the pattern is (big − tiny) − big. Subtracting a tiny value from a large one also rounds away the tiny value in float precision, leaving big unchanged; the second subtraction then yields 0 rather than −1.",
+    code:`#include <stdio.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float y = (big - tiny) - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:3,  name:"Scaled Intermediate",      tag:"cancellation", tagClass:"t-cancel", expects:"DETECT — float/shadow divergence", expectsClass:"tl-warn", desc:"base² magnifies the cancellation problem via fmul.",
+    explanation:"base² (1e10) is large enough that adding 1 is invisible in float. The intermediate result x = base * base magnifies the problem: x + tiny rounds to x, so (x + tiny) − x = 0. The double shadow correctly computes 1.0 for this subtraction.",
+    code:`#include <stdio.h>\n\nstatic volatile float base = 100000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float x = base * base;\n  float y = (x + tiny) - x;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:4,  name:"Quarter Increment",        tag:"precision boundary", tagClass:"t-cancel", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"16777216 = 2²⁴; adding 0.25 (below ULP) vanishes entirely.",
+    explanation:"16777216 is exactly 2²⁴, the last float integer where 0.25 is representable. One ULP here is 2.0, so adding 0.25 (below ULP) rounds away entirely. Subtracting big then gives 0 instead of 0.25. This is a precision boundary case, not large-number overflow.",
+    code:`#include <stdio.h>\n\nstatic volatile float big  = 16777216.0f;\nstatic volatile float tiny = 0.25f;\n\nint main(void) {\n  float y = (big + tiny) - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:5,  name:"Select Operand",           tag:"cancellation via select", tagClass:"t-cancel", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"Shadow tracks through LLVM select (ternary ?:) correctly.",
+    explanation:"The pass instruments LLVM select instructions (ternary ?: in C). The shadow tracks through the conditional—whichever branch is taken carries its double shadow. This test verifies that cancellation is caught even when the cancelling operand was chosen by a runtime condition.",
+    code:`#include <stdio.h>\n\nstatic volatile int   choose = 1;\nstatic volatile float pos    = 100000000.0f;\nstatic volatile float neg    = -100000000.0f;\nstatic volatile float tiny   = 3.0f;\n\nint main(void) {\n  float x = choose ? pos : neg;\n  float y = (x + tiny) - x;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:6,  name:"PHI Loop",                 tag:"loop-carried PHI", tagClass:"t-cancel", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"Shadow PHI node tracks 4 loop iterations; all increments are lost.",
+    explanation:"The LLVM pass creates a shadow PHI node for every float PHI in a loop. Each iteration adds tiny to big—and each addition rounds away the increment. After 4 iterations, subtracting the original start value reveals that all increments were lost. The shadow PHI accumulates correctly in double precision.",
+    code:`#include <stdio.h>\n\nstatic volatile float start = 100000000.0f;\nstatic volatile float tiny  = 1.0f;\n\nint main(void) {\n  float acc = start;\n  for (int i = 0; i < 4; ++i)\n    acc = acc + tiny;\n  float y = acc - start;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:7,  name:"Store / Load Scalar",      tag:"shadow tracking", tagClass:"t-div", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"Shadow survives store→load round-trip via the address hash table.",
+    explanation:"Shadow values must survive a memory round-trip: when big+tiny is stored, the double shadow is written to a hash-table keyed by address. When the float is loaded back, the shadow is retrieved. This test verifies the store→load shadow chain is intact through a scalar variable.",
+    code:`#include <stdio.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float saved = big + tiny;\n  float y     = saved - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:8,  name:"Store / Load Array",       tag:"shadow tracking", tagClass:"t-div", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"Per-element shadow addressing through an array index.",
+    explanation:"Same shadow-persistence check as case 07 but through an array index. Each array element has its own shadow-table entry keyed by its address. This exercises per-element addressing and verifies that the shadow for values[0] is independently tracked from values[1].",
+    code:`#include <stdio.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 5.0f;\n\nint main(void) {\n  float values[2];\n  values[0] = big + tiny;\n  values[1] = big;\n  float y   = values[0] - values[1];\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:9,  name:"Double → Float Truncation",tag:"fptrunc loss", tagClass:"t-div", expects:"DETECT — float/shadow divergence", expectsClass:"tl-warn", desc:"fptrunc: double source becomes shadow directly; float rounds.",
+    explanation:"Casting a double (100000001.0) to float rounds it to 100000000 — the last bit is lost. The pass instruments fptrunc: for a double-to-float cast it uses the double source directly as the shadow (no loss), while the float result is rounded. The divergence surfaces on the subsequent subtraction.",
+    code:`#include <stdio.h>\n\nstatic volatile double precise = 100000001.0;\nstatic volatile float  big     = 100000000.0f;\n\nint main(void) {\n  float rounded = (float)precise;\n  float y       = rounded - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:10, name:"Division Intermediate",    tag:"div + cancel", tagClass:"t-cancel", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"Shadow propagates through fdiv; cancellation detected after.",
+    explanation:"big/4 = 25000000; adding 0.25 to this large value rounds away the addend (ULP at 25M is 2.0). Subtracting back gives 0. The pass instruments fdiv and correctly propagates the shadow through the division, then detects the cancellation in the subsequent subtraction.",
+    code:`#include <stdio.h>\n\nstatic volatile float big     = 100000000.0f;\nstatic volatile float divisor = 4.0f;\nstatic volatile float tiny    = 0.25f;\n\nint main(void) {\n  float x = big / divisor;\n  float y = (x + tiny) - x;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:11, name:"Product Then Cancel",      tag:"mul + cancel", tagClass:"t-cancel", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"4096² = 2²⁴ = float precision boundary; cancellation follows.",
+    explanation:"4096 × 4096 = 16777216 = 2²⁴, which is the float precision boundary. Multiplying two moderate numbers can land exactly on this boundary, making the result susceptible to the same below-ULP cancellation. The shadow tracks through fmul correctly.",
+    code:`#include <stdio.h>\n\nstatic volatile float a    = 4096.0f;\nstatic volatile float b    = 4096.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float x = a * b;\n  float y = (x + tiny) - x;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:12, name:"Cross-Function Shadow",    tag:"function ABI", tagClass:"t-fn", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"TLS arg/return slots propagate shadows across noinline calls.",
+    explanation:"The subtract helper is marked __attribute__((noinline)) so it cannot be inlined. The pass seeds float argument shadows into thread-local slots before the call and the callee reads them at function entry. The return shadow is published in a TLS return slot and consumed by the caller, demonstrating interprocedural shadow propagation.",
+    code:`#include <stdio.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\n__attribute__((noinline))\nstatic float subtract(float x, float y) {\n  return x - y;\n}\n\nint main(void) {\n  float hidden = big + tiny;\n  float y      = subtract(hidden, big);\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:13, name:"Math Model: sqrtf",        tag:"math model", tagClass:"t-div", expects:"DETECT — float/shadow divergence", expectsClass:"tl-warn", desc:"__nsan_shadow_sqrtf uses double sqrt(); shadow stays precise.",
+    explanation:"The pass recognises sqrtf (and llvm.sqrt.f32) and replaces the shadow computation with __nsan_shadow_sqrtf, which calls double-precision sqrt(). Squaring the float root and subtracting big surfaces the accumulated error from the imprecise float sqrt. Math-model coverage prevents the shadow from going stale after a libm call.",
+    code:`#include <math.h>\n#include <stdio.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float hidden        = big + tiny;\n  float root          = sqrtf(hidden);\n  float reconstructed = root * root;\n  float y             = reconstructed - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:14, name:"Math Model: fabsf",        tag:"math model", tagClass:"t-div", expects:"DETECT — float/shadow divergence", expectsClass:"tl-warn", desc:"fabsf shadow model preserves precision through absolute value.",
+    explanation:"fabsf is instrumented via __nsan_shadow_fabsf (which calls fabs() on the double shadow). The shadow correctly follows the absolute-value of the precise result. The subsequent subtraction then reveals the original cancellation. This pattern demonstrates that math models preserve shadow precision end-to-end.",
+    code:`#include <math.h>\n#include <stdio.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float hidden = big + tiny;\n  float folded = fabsf(hidden);\n  float y      = folded - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:15, name:"Vector Float Ops (SIMD)",  tag:"SIMD lanes", tagClass:"t-vec", expects:"DETECT — cancellation (all 4 lanes)", expectsClass:"tl-warn", desc:"<4 x float> gets a <4 x double> shadow; per-lane diagnostics.",
+    explanation:"A <4 x float> GCC vector type is used. The pass creates a <4 x double> shadow and performs per-lane shadow arithmetic. Each lane is extracted and checked independently. All four lanes undergo the same (big + tiny) − big cancellation. This verifies fixed-width vector instrumentation.",
+    code:`#include <stdio.h>\n\ntypedef float v4f __attribute__((vector_size(16)));\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  v4f a = {big, big, big, big};\n  v4f b = {tiny, tiny, tiny, tiny};\n  v4f hidden = a + b;\n  v4f y      = hidden - a;\n  printf("%f\\n", y[0]);\n  return 0;\n}` },
+  { id:16, name:"memcpy Shadow Transfer",   tag:"memory copy", tagClass:"t-mem", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"Destination float inherits source shadow after memcpy.",
+    explanation:"After memcpy the destination float must inherit the source's shadow. The pass intercepts both the llvm.memcpy intrinsic and the libc memcpy call, inserting __nsan_copy_shadow_bytes which scans the shadow table for entries within the source range and writes them at the destination offsets. Without this, the load of dst would miss the cancellation.",
+    code:`#include <stdio.h>\n#include <string.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float src = big + tiny;\n  float dst = 0.0f;\n  memcpy(&dst, &src, sizeof(float));\n  float y = dst - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:17, name:"memmove Shadow Transfer",  tag:"memory move", tagClass:"t-mem", expects:"DETECT — catastrophic cancellation", expectsClass:"tl-warn", desc:"Same as 16 using memmove (overlap-safe copy path).",
+    explanation:"Same as case 16 but using memmove (which handles overlapping ranges). The pass instruments memmove via __nsan_move_shadow_bytes, which uses the same scan-collect-write transfer logic as the copy path. This confirms that the memmove instrumentation path works independently of the memcpy path.",
+    code:`#include <stdio.h>\n#include <string.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float values[2];\n  values[0] = big + tiny;\n  values[1] = 0.0f;\n  memmove(&values[1], &values[0], sizeof(float));\n  float y = values[1] - big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:18, name:"memset Invalidation",      tag:"no diagnostic", tagClass:"t-clean", expects:"CLEAN — no diagnostic expected", expectsClass:"tl-ok", desc:"memset zeroes shadow; subsequent load falls back cleanly.",
+    explanation:"A memset zeroes the float bytes and invalidates the shadow entry. When x is subsequently loaded, the shadow table has no valid entry and falls back to (double)x = 0.0. The addition x + big is then consistent in both float and double, so no warning fires. This negative test verifies that the invalidation path prevents false positives from stale shadow state.",
+    code:`#include <stdio.h>\n#include <string.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  float x = big + tiny;\n  memset(&x, 0, sizeof(float));\n  float y = x + big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+  { id:19, name:"Integer Store Invalidation",tag:"no diagnostic", tagClass:"t-clean", expects:"CLEAN — no diagnostic expected", expectsClass:"tl-ok", desc:"Integer union write invalidates shadow; no stale-shadow noise.",
+    explanation:"An integer write through a union stomps the float bytes with a known value (0u). The pass instruments the integer store with __nsan_forget_shadow_bytes, invalidating the shadow. The subsequent float load falls back to (double)0.0. The final y = 0.0f + big is clean in both precisions—no spurious diagnostic. A correctness test for integer-write invalidation.",
+    code:`#include <stdint.h>\n#include <stdio.h>\n\nstatic volatile float big  = 100000000.0f;\nstatic volatile float tiny = 1.0f;\n\nint main(void) {\n  union { float f; uint32_t u; } value;\n  value.f = big + tiny;\n  value.u = 0u;\n  float y = value.f + big;\n  printf("%f\\n", y);\n  return 0;\n}` },
+];
+
+/* ── Page switching ──────────────────────────────────────────── */
+function showPage(page) {
+  const dash = document.getElementById('page-dash');
+  const play = document.getElementById('page-play');
+  const body = document.getElementById('body');
+  const nd   = document.getElementById('nav-dash');
+  const np   = document.getElementById('nav-play');
+
+  if (page === 'play') {
+    dash.style.display = 'none';
+    play.style.display = 'block';
+    body.classList.add('play-mode');
+    nd.classList.remove('active');
+    np.classList.add('active');
+  } else {
+    play.style.display = 'none';
+    dash.style.display = 'block';
+    body.classList.remove('play-mode');
+    nd.classList.add('active');
+    np.classList.remove('active');
+  }
+}
+
+/* ── Build playground template list ─────────────────────────── */
+function buildList() {
+  const list = document.getElementById('tmpl-list');
+  TESTS.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'tmpl-item';
+    el.id = `tmpl-${t.id}`;
+    el.onclick = () => loadTest(t.id);
+    el.innerHTML =
+      `<span class="tmpl-num">${String(t.id).padStart(2,'0')}</span>` +
+      `<span class="tmpl-name">${t.name}</span>` +
+      `<span class="tag ${t.tagClass}">${t.tag}</span>`;
+    list.appendChild(el);
+  });
+}
+
+/* ── Build dashboard test grid ───────────────────────────────── */
+function buildDashGrid() {
+  const grid = document.getElementById('dash-tests-grid');
+  TESTS.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'tc-card';
+    el.onclick = () => { loadTest(t.id); showPage('play'); };
+    el.innerHTML =
+      `<div class="tc-top">` +
+        `<span class="tc-num">${String(t.id).padStart(2,'0')}</span>` +
+        `<span class="tag ${t.tagClass}">${t.tag}</span>` +
+      `</div>` +
+      `<div class="tc-name">${t.name}</div>` +
+      `<div class="tc-desc">${t.desc}</div>`;
+    grid.appendChild(el);
+  });
+}
+
+/* ── Load test into playground editor ───────────────────────── */
+function loadTest(id) {
+  const t = TESTS.find(x => x.id === id);
+  if (!t) return;
+  document.querySelectorAll('.tmpl-item').forEach(el => el.classList.remove('active'));
+  const item = document.getElementById(`tmpl-${id}`);
+  if (item) { item.classList.add('active'); item.scrollIntoView({block:'nearest'}); }
+  document.getElementById('editor').value = t.code.replace(/\\n/g, '\n');
+  const etag   = document.getElementById('explain-tag');
+  const etitle = document.getElementById('explain-title');
+  const ebody  = document.getElementById('explain-body');
+  const eexp   = document.getElementById('explain-expects');
+  etag.innerHTML     = `<span class="tag ${t.tagClass}">${t.tag}</span>`;
+  etitle.textContent = t.name;
+  ebody.textContent  = t.explanation;
+  eexp.innerHTML     = `<span class="${t.expectsClass}" style="font-size:10px">${t.expects}</span>`;
+  document.getElementById('explain').classList.add('show');
+}
+
+/* ── Live calculator ─────────────────────────────────────────── */
+function updateCalc() {
+  const big  = parseFloat(document.getElementById('calc-big').value)  || 0;
+  const tiny = parseFloat(document.getElementById('calc-tiny').value) || 0;
+
+  const big32  = Math.fround(big);
+  const tiny32 = Math.fround(tiny);
+
+  const sum32    = Math.fround(big32 + tiny32);
+  const result32 = Math.fround(sum32 - big32);
+
+  const result64 = (big32 + tiny32) - big32;
+
+  const absErr = Math.abs(result32 - result64);
+  const relErr = absErr / Math.max(Math.abs(result64), Number.MIN_VALUE);
+  const maxIn  = Math.max(Math.abs(sum32), Math.abs(big32));
+  const ratio  = maxIn / Math.max(Math.abs(result64), Number.MIN_VALUE);
+
+  const fmt = v => Math.abs(v) < 1e-15 ? '0' : (Math.abs(v) < 0.001 || Math.abs(v) > 1e8) ? v.toExponential(4) : v.toPrecision(6);
+
+  document.getElementById('cr-f32').textContent  = fmt(result32);
+  document.getElementById('cr-f64').textContent  = fmt(result64);
+  document.getElementById('cr-exp').textContent  = fmt(tiny);
+  document.getElementById('cr-abs').textContent  = absErr.toExponential(3);
+  document.getElementById('cr-rel').textContent  = relErr.toExponential(3);
+  document.getElementById('cr-ratio').textContent= ratio > 1e15 ? '> 1e15' : ratio.toExponential(2);
+
+  const f32El    = document.getElementById('cr-f32');
+  const ratioEl  = document.getElementById('cr-ratio');
+  const verdict  = document.getElementById('cr-verdict');
+
+  const isCancellation = ratio >= 1e6 && absErr > 1e-12 && relErr > 1e-5;
+  const isDivergence   = !isCancellation && absErr > 1e-12 && relErr > 1e-5;
+
+  f32El.className   = 'calc-row-val' + (isCancellation || isDivergence ? ' bad' : ' good');
+  ratioEl.className = 'calc-row-val' + (ratio >= 1e6 ? ' bad' : '');
+
+  if (isCancellation) {
+    verdict.textContent = 'NSan: catastrophic cancellation  (ratio ≥ 1e6, diverged)';
+    verdict.className   = 'calc-verdict detected';
+  } else if (isDivergence) {
+    verdict.textContent = 'NSan: float/shadow divergence  (rel_error > 1e-5)';
+    verdict.className   = 'calc-verdict diverge';
+  } else {
+    verdict.textContent = 'NSan: no issue detected  (float and double agree)';
+    verdict.className   = 'calc-verdict clean';
+  }
+
+  document.getElementById('calc-expr').innerHTML =
+    `float y = (${big32} + ${tiny32}) - ${big32};\n` +
+    `<span style="color:#888">// float32: ${fmt(result32)} &nbsp; double: ${fmt(result64)}</span>`;
+}
+
+/* ── Playground: terminal helpers ────────────────────────────── */
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function span(cls, content) { return `<span class="tl ${cls}">${content}</span>`; }
+function br()      { return '\n'; }
+function divider() { return `<hr class="tl-divider" />`; }
+
+function renderOutput(data) {
+  const dot = document.getElementById('term-dot');
+  const out = document.getElementById('term-out');
+  let html  = '';
+
+  if (data.status === 'compile_error') {
+    dot.classList.remove('live');
+    setStatus('err', 'COMPILE ERROR');
+    html += span('tl-section', '── Compile Error ──────────────────────────────────────────') + br();
+    (data.compile_stderr || '').split('\n').forEach(line => {
+      if (!line) { html += br(); return; }
+      if (/error:/.test(line))        html += span('tl-cerr',  esc(line)) + br();
+      else if (/warning:/.test(line)) html += span('tl-cwarn', esc(line)) + br();
+      else                            html += span('tl-detail',esc(line)) + br();
+    });
+    out.innerHTML = html; out.scrollTop = 0; return;
+  }
+
+  dot.classList.add('live');
+
+  const cw = (data.compile_stderr || '').trim();
+  if (cw) {
+    html += span('tl-section', '── Compile Warnings ───────────────────────────────────────') + br();
+    cw.split('\n').forEach(line => {
+      if (!line) { html += br(); return; }
+      html += span(/warning:/.test(line) ? 'tl-cwarn' : 'tl-detail', esc(line)) + br();
+    });
+    html += divider();
+  }
+
+  const stderr = (data.stderr || '').trim();
+  if (stderr) {
+    html += span('tl-section', '── NSan Diagnostics ───────────────────────────────────────') + br();
+    stderr.split('\n').forEach(line => {
+      if (!line) { html += br(); return; }
+      if (/^NumericalSanitizer\s+warning:/.test(line))  html += span('tl-warn',  esc(line)) + br();
+      else if (/^NumericalSanitizer\s+error:/.test(line)) html += span('tl-err', esc(line)) + br();
+      else if (/^\s+at\s/.test(line))                    html += span('tl-loc',  esc(line)) + br();
+      else if (/^\s+(op=|abs_error=|lhs_shadow=|cancellation_ratio=)/.test(line)) html += span('tl-detail', esc(line)) + br();
+      else if (/^\s+note:/.test(line))                   html += span('tl-note', esc(line)) + br();
+      else                                               html += span('tl-detail',esc(line)) + br();
+    });
+    html += divider();
+    setStatus('err', 'WARNINGS DETECTED');
+  } else {
+    setStatus('ok', 'SUCCESS');
+  }
+
+  const stdout = (data.stdout || '').trim();
+  if (stdout) {
+    html += span('tl-section', '── Program Output ─────────────────────────────────────────') + br();
+    stdout.split('\n').forEach(line => { html += span('tl-stdout', esc(line)) + br(); });
+    html += divider();
+  }
+
+  if (!stderr && !stdout) html += span('tl-ok', '  (No output — program exited silently)') + br();
+  if (!stderr && data.status === 'success') html += span('tl-ok', '  No numerical issues detected.') + br();
+  if (data.returncode !== undefined && data.returncode !== 0) {
+    html += span('tl-err', `  Exit code: ${data.returncode}`) + br();
+    setStatus('err', `EXIT ${data.returncode}`);
+  }
+
+  out.innerHTML = html || span('tl-empty', '  (empty output)');
+  out.scrollTop = 0;
+}
+
+async function runCode() {
+  const code = document.getElementById('editor').value.trim();
+  if (!code) return;
+  const btn = document.getElementById('btn-run');
+  const out = document.getElementById('term-out');
+  const dot = document.getElementById('term-dot');
+  btn.disabled = true;
+  dot.classList.remove('live');
+  setStatus('running', 'COMPILING…');
+  out.innerHTML = span('tl-empty', '  Compiling and running…') + br();
+  try {
+    const res  = await fetch('/run', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code}) });
+    const data = await res.json();
+    renderOutput(data);
+  } catch(e) {
+    out.innerHTML = span('tl-err', 'Network error: ' + esc(e.message)) + br() + span('tl-detail','Is the Flask server running? (python3 web/app.py)') + br();
+    setStatus('err', 'NETWORK ERROR');
+    dot.classList.remove('live');
+  } finally { btn.disabled = false; }
+}
+
+function clearOutput() {
+  document.getElementById('term-out').innerHTML = span('tl-dim','── Output cleared. ──────────────────────────────────────') + br();
+  document.getElementById('term-dot').classList.remove('live');
+  setStatus('idle','READY');
+}
+
+function copyOutput() {
+  const text = document.getElementById('term-out').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.term-copy');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+function setStatus(type, text) {
+  const el = document.getElementById('status');
+  el.className = 'status';
+  el.classList.add(type === 'running' ? 's-running' : type === 'ok' ? 's-ok' : type === 'err' ? 's-err' : 's-idle');
+  el.textContent = text;
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runCode(); }
+});
+
+/* ── Init ────────────────────────────────────────────────────── */
+buildList();
+buildDashGrid();
+updateCalc();
+</script>
+</body>
+</html>

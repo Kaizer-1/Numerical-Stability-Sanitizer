@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+real_clang="${NSAN_CLANG:-@CMAKE_C_COMPILER@}"
+build_dir="@CMAKE_CURRENT_BINARY_DIR@"
+runtime="@CMAKE_CURRENT_BINARY_DIR@/libnsan_runtime.a"
+plugin=""
+
+plugin_candidates=(
+  "$build_dir/@CMAKE_SHARED_MODULE_PREFIX@NumericalSanitizerPass@CMAKE_SHARED_MODULE_SUFFIX@"
+  "$build_dir/libNumericalSanitizerPass.dylib"
+  "$build_dir/libNumericalSanitizerPass.so"
+  "$build_dir/NumericalSanitizerPass.dylib"
+  "$build_dir/NumericalSanitizerPass.so"
+)
+
+for candidate in "${plugin_candidates[@]}"; do
+  if [[ -f "$candidate" ]]; then
+    plugin="$candidate"
+    break
+  fi
+done
+
+enabled=0
+compile_only=0
+optimization_seen=0
+args=()
+
+for arg in "$@"; do
+  case "$arg" in
+    -fsanitize=numerical)
+      enabled=1
+      ;;
+    -O0)
+      optimization_seen=1
+      args+=("-O1")
+      ;;
+    -O|-O1|-O2|-O3|-Og|-Os|-Oz|-Ofast)
+      optimization_seen=1
+      args+=("$arg")
+      ;;
+    -c|-S|-E)
+      compile_only=1
+      args+=("$arg")
+      ;;
+    *)
+      args+=("$arg")
+      ;;
+  esac
+done
+
+if [[ "$enabled" == "0" ]]; then
+  exec "$real_clang" "${args[@]}"
+fi
+
+if [[ "$optimization_seen" == "0" ]]; then
+  args=("-O1" "${args[@]}")
+fi
+
+if [[ -z "$plugin" ]]; then
+  echo "numerical-clang: NumericalSanitizerPass plugin not found in $build_dir" >&2
+  exit 1
+fi
+
+pass_args=("-fpass-plugin=$plugin")
+if [[ "$compile_only" == "0" ]]; then
+  pass_args+=("$runtime" "-lm")
+fi
+
+exec "$real_clang" "${pass_args[@]}" "${args[@]}"
